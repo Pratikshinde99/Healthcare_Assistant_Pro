@@ -37,25 +37,6 @@ In an era of misinformation, looking up symptoms online can be dangerous. **Heal
 
 ---
 
-## 🏗 System Architecture
-
-This project utilizes an industry-aligned "Guardrails" architecture to ensure safety:
-
-```mermaid
-graph TD
-    User[User Query] --> Input[Input Validation + Profile Context]
-    Input --> Emergency[Emergency Detection Layer]
-    Emergency -- "Critical Keywords" --> Alert[🚨 Immediate Emergency Alert]
-    Emergency -- "Safe" --> Triage[Symptom Triage (Infermedica/Heuristic)]
-    Triage --> Risk{Risk Level?}
-    Risk -- "High/Doctor" --> Warning[⚠️ Medical Visit Recommended]
-    Risk -- "Self-Care" --> AI[AI Reasoning Layer (LLaMA-3 / GPT-4o)]
-    AI --> Grounding[Knowledge Grounding (BioGPT / OpenFDA)]
-    Grounding --> Response[Final Safe Response + Disclaimer]
-```
-
----
-
 ## 🚀 Key Features
 
 ### 1. Intelligent Symptom Triage

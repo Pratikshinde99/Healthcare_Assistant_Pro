@@ -36,8 +36,20 @@ if 'profile' not in st.session_state:
 # Load Model (Cached)
 @st.cache_resource
 def load_model():
-    # Upgrade to 'base' for better reasoning/RAG capabilities
-    return transformers.pipeline("text2text-generation", model="google/flan-t5-base")
+    # Use a model that doesn't require sentencepiece for better compatibility
+    # Try using a different model that's more compatible with deployment environments
+    try:
+        # First try the original FLAN-T5 model
+        return transformers.pipeline("text2text-generation", model="google/flan-t5-base")
+    except Exception as e:
+        # If that fails, try a different model that doesn't require sentencepiece
+        try:
+            # Using a BART model instead which doesn't require sentencepiece
+            return transformers.pipeline("text2text-generation", model="facebook/bart-large-cnn")
+        except Exception as e2:
+            # If all else fails, return None and handle gracefully
+            st.error(f"Error loading local AI model: {e}, {e2}")
+            return None
 
 try:
     text_generator = load_model()
@@ -138,7 +150,30 @@ def generate_via_groq(prompt: str) -> str | None:
 
 def generate_ai_response(user_input: str, context: str = "") -> str:
     if not text_generator:
-        return "AI model is currently unavailable."
+        # If local model is unavailable, try to use cloud-based models
+        backend = st.session_state.get("model_backend", "Local (FLAN-T5-Base)")
+        if backend != "Local (FLAN-T5-Base)":
+            # If user has selected a cloud model, try that instead
+            prompt = (
+                "Answer the following health question safely, briefly and clearly. "
+                "Do not diagnose or prescribe. "
+                f"Question: {user_input} "
+                "Answer:"
+            )
+            if backend == "OpenAI (gpt-4o-mini)":
+                r = generate_via_openai(prompt)
+                if r:
+                    return r
+            elif backend == "Anthropic (Claude 3.5)":
+                r = generate_via_anthropic(prompt)
+                if r:
+                    return r
+            elif backend == "Groq (Llama-3.1-70B)":
+                r = generate_via_groq(prompt)
+                if r:
+                    return r
+        
+        return "AI model is currently unavailable. Please ensure you have API keys configured for cloud-based AI services."
         
     if context:
         prompt = (
@@ -159,17 +194,40 @@ def generate_ai_response(user_input: str, context: str = "") -> str:
     try:
         backend = st.session_state.get("model_backend", "Local (FLAN-T5-Base)")
         if backend == "Local (FLAN-T5-Base)":
-            out = text_generator(
-                MASTER_PROMPT + "\n\n" + prompt, 
-                max_length=256, 
-                min_length=20, 
-                do_sample=True, 
-                temperature=0.6, 
-                top_p=0.9,
-                repetition_penalty=1.2,
-                no_repeat_ngram_size=3
-            )
-            return out[0]["generated_text"]
+            if text_generator:
+                out = text_generator(
+                    MASTER_PROMPT + "\n\n" + prompt, 
+                    max_length=256, 
+                    min_length=20, 
+                    do_sample=True, 
+                    temperature=0.6, 
+                    top_p=0.9,
+                    repetition_penalty=1.2,
+                    no_repeat_ngram_size=3
+                )
+                return out[0]["generated_text"]
+            else:
+                # If text_generator is None, fall back to the same cloud models
+                prompt = (
+                    "Answer the following health question safely, briefly and clearly. "
+                    "Do not diagnose or prescribe. "
+                    f"Question: {user_input} "
+                    "Answer:"
+                )
+                if st.session_state.get("model_backend") == "OpenAI (gpt-4o-mini)":
+                    r = generate_via_openai(prompt)
+                    if r:
+                        return r
+                elif st.session_state.get("model_backend") == "Anthropic (Claude 3.5)":
+                    r = generate_via_anthropic(prompt)
+                    if r:
+                        return r
+                elif st.session_state.get("model_backend") == "Groq (Llama-3.1-70B)":
+                    r = generate_via_groq(prompt)
+                    if r:
+                        return r
+                
+                return "Local model is unavailable. Please configure cloud-based AI services."
         if backend == "OpenAI (gpt-4o-mini)":
             r = generate_via_openai(prompt)
             if r:
@@ -182,17 +240,21 @@ def generate_ai_response(user_input: str, context: str = "") -> str:
             r = generate_via_groq(prompt)
             if r:
                 return r
-        out = text_generator(
-            MASTER_PROMPT + "\n\n" + prompt, 
-            max_length=256, 
-            min_length=20, 
-            do_sample=True, 
-            temperature=0.6, 
-            top_p=0.9,
-            repetition_penalty=1.2,
-            no_repeat_ngram_size=3
-        )
-        return out[0]["generated_text"]
+        if text_generator:
+            out = text_generator(
+                MASTER_PROMPT + "\n\n" + prompt, 
+                max_length=256, 
+                min_length=20, 
+                do_sample=True, 
+                temperature=0.6, 
+                top_p=0.9,
+                repetition_penalty=1.2,
+                no_repeat_ngram_size=3
+            )
+            return out[0]["generated_text"]
+        else:
+            # If text_generator is None, return an error message
+            return "Local model is unavailable. Please configure cloud-based AI services."
     except Exception:
         return "I am unable to generate a response at this moment."
 

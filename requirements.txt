@@ -1,7 +1,12 @@
-streamlit==1.31.1
-transformers==4.35.2
-sentencepiece==0.1.99
+streamlit
+transformers>=4.35.2
+torch
+tokenizers
+huggingface-hub
 requests
 openai
 groq
+anthropic
 python-dotenv
+importlib-metadata>=4.4.0
+accelerate
